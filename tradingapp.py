@@ -136,6 +136,14 @@ if average_below_25th != 0:
 else:
     risk_reward_ratio_percentiles = np.nan  # Avoid division by zero
 
+# Calculate Mathematical Expectation
+average_win = average_positive_monthly_return / 100
+average_loss = abs(average_negative_monthly_return / 100)
+winning_percentage = percentage_positive_months / 100
+losing_percentage = percentage_negative_months / 100
+
+expectation = (average_win * winning_percentage) - (average_loss * losing_percentage)
+
 
 # Display monthly performance metrics
 st.markdown("### Monthly Performance Metrics")
@@ -145,6 +153,23 @@ st.markdown(f"**Percentage of Positive Months**: {percentage_positive_months:.2f
 st.markdown(f"**Percentage of Negative Months**: {percentage_negative_months:.2f}%")
 st.markdown(f"**Risk Reward Profile**: {risk_reward_ratio:.2f}x")
 st.markdown(f"**CVar Risk-Reward Ratio**: {risk_reward_ratio_percentiles:.2f}")
+st.markdown(f"**Mathematical Expectation (E(x))**: {expectation:.4f}")
+
+data_spy = yf.download(tickers='SPY', start=start, end=end)
+data_qqq = yf.download(tickers='QQQ', start=start, end=end)
+
+data_spy['DailyReturn'] = data_spy['Adj Close'].pct_change().dropna()
+data_qqq['DailyReturn'] = data_qqq['Adj Close'].pct_change().dropna()
+data['DailyReturn'] = data['Adj Close'].pct_change().dropna()
+
+# Calculate the correlation with SPY and QQQ
+correlation_spy = data['DailyReturn'].corr(data_spy['DailyReturn'])
+correlation_qqq = data['DailyReturn'].corr(data_qqq['DailyReturn'])
+
+# Display the correlation with SPY and QQQ
+st.markdown("### Correlation with Market Indices")
+st.markdown(f"**Correlation with S&P 500**: {correlation_spy:.1%}")
+st.markdown(f"**Correlation with Nasdaq 100**: {correlation_qqq:.1%}")
 
 # Calculate daily returns
 data2['DailyReturn'] = data2['Close'].pct_change()
