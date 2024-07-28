@@ -160,11 +160,11 @@ data_qqq = yf.download(tickers='QQQ', start=start, end=end)
 
 data_spy['DailyReturn'] = data_spy['Adj Close'].pct_change().dropna()
 data_qqq['DailyReturn'] = data_qqq['Adj Close'].pct_change().dropna()
-data['DailyReturn'] = data['Adj Close'].pct_change().dropna()
+data2['DailyReturn'] = data2['Adj Close'].pct_change().dropna()
 
 # Calculate the correlation with SPY and QQQ
-correlation_spy = data['DailyReturn'].corr(data_spy['DailyReturn'])
-correlation_qqq = data['DailyReturn'].corr(data_qqq['DailyReturn'])
+correlation_spy = data2['DailyReturn'].corr(data_spy['DailyReturn'])
+correlation_qqq = data2['DailyReturn'].corr(data_qqq['DailyReturn'])
 
 # Display the correlation with SPY and QQQ
 st.markdown("### Correlation with Market Indices")
