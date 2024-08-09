@@ -2,9 +2,39 @@ import streamlit as st
 import yfinance as yf
 import plotly.graph_objs as go
 from datetime import datetime, timedelta
+import pandas as pd
 import numpy as np
 from scipy.stats import norm
+import pandas_datareader as pdr
 
+# Define the function to calculate Sharpe Ratio
+def sharpe_ratio(return_series, N, rf):
+    mean = return_series.mean() * N - rf
+    sigma = return_series.std() * np.sqrt(N)
+    return mean / sigma
+
+# Define the function to calculate Sortino Ratio
+def sortino_ratio(return_series, N, rf):
+    mean = return_series.mean() * N - rf
+    std_neg = return_series[return_series < 0].std() * np.sqrt(N)
+    return mean / std_neg
+
+# Define the function to calculate Maximum Drawdown
+def max_drawdown(return_series):
+    comp_ret = (return_series + 1).cumprod()
+    peak = comp_ret.expanding(min_periods=1).max()
+    dd = (comp_ret / peak) - 1
+    return dd.min()
+
+# Define the function to calculate CVaR
+def calculate_cvar(returns, confidence_level=0.95):
+    sorted_returns = np.sort(returns)
+    index = int((1 - confidence_level) * len(sorted_returns))
+    cvar = sorted_returns[:index].mean()
+    return cvar
+
+# Set the parameters
+N = 252  # Number of trading days in a year
 
 # Title of the app
 st.title("Risk Management Trading App")
@@ -52,6 +82,9 @@ data = yf.download(ticker, start=start_date, end=end_date)
 
 data2 = yf.download(ticker, start=start, end=end)
 
+rf_data = pdr.get_data_fred('DGS1MO', start=start, end=end).interpolate()
+rf = rf_data.iloc[-1, 0] / 100  # Last available 1-Month Treasury rate as risk-free rate
+
 
 # Create candlestick chart
 fig = go.Figure(data=[go.Candlestick(x=data.index,
@@ -70,6 +103,63 @@ fig.update_layout(title=f'Candlestick Chart for {company_name} ({ticker}) - {sel
 
 # Display the chart in the Streamlit app
 st.plotly_chart(fig)
+
+# Calculate performance metrics for the ticker and benchmarks
+benchmarks = ['SPY', 'QQQ']
+tickers = benchmarks + [ticker]
+
+# Download the data for benchmarks and ticker
+data_benchmarks = yf.download(tickers, start=start, end=end)['Adj Close']
+
+# Calculate daily returns
+returns = data_benchmarks.pct_change().dropna()
+
+# Calculate performance metrics
+metrics = ['Total Return', 'Annualized Return', 'Standard Deviation', 'Sharpe Ratio', 'Sortino Ratio', 'Calmar Ratio', 'CVar', 'Maximum Drawdown', 'Kurtosis', 'Skewness']
+performance_df = pd.DataFrame(index=metrics, columns=tickers)
+
+# Total Return
+performance_df.loc['Total Return'] = (data_benchmarks.iloc[-1] / data_benchmarks.iloc[0] - 1) * 100
+
+# Annualized Return
+performance_df.loc['Annualized Return'] = ((1 + performance_df.loc['Total Return'] / 100) ** (255 / len(data_benchmarks)) - 1) * 100
+
+# Standard Deviation
+performance_df.loc['Standard Deviation'] = returns.std() * np.sqrt(255) * 100
+
+# Sharpe Ratio
+performance_df.loc['Sharpe Ratio'] = returns.apply(lambda x: sharpe_ratio(x, 255, 0.01))
+
+# Sortino Ratio
+performance_df.loc['Sortino Ratio'] = returns.apply(lambda x: sortino_ratio(x, 255, 0.01))
+
+# Calmar Ratio
+max_drawdowns = returns.apply(max_drawdown)
+performance_df.loc['Calmar Ratio'] = returns.mean() * 255 / abs(max_drawdowns)
+
+# CVaR
+performance_df.loc['CVar'] = returns.apply(calculate_cvar) * 100
+
+# Maximum Drawdown
+performance_df.loc['Maximum Drawdown'] = max_drawdowns * 100
+
+# Kurtosis
+performance_df.loc['Kurtosis'] = returns.kurtosis()
+
+# Skewness
+performance_df.loc['Skewness'] = returns.skew()
+
+# Format as percentages with 2 decimal places for specific metrics
+percentage_metrics = ['Total Return', 'Annualized Return', 'Standard Deviation', 'CVar', 'Maximum Drawdown']
+performance_df.loc[percentage_metrics] = performance_df.loc[percentage_metrics].applymap(lambda x: f"{x:.2f}%")
+
+# Format other metrics as floats with 2 decimal places
+float_metrics = ['Sharpe Ratio', 'Sortino Ratio', 'Calmar Ratio', 'Kurtosis', 'Skewness']
+performance_df.loc[float_metrics] = performance_df.loc[float_metrics].applymap(lambda x: f"{x:.2f}")
+
+# Display the DataFrame in the app
+st.markdown("### Performance Metrics Comparison")
+st.dataframe(performance_df)
 
 # Calculate performance for specified periods
 def calculate_performance(data, period_days):
@@ -160,11 +250,11 @@ data_qqq = yf.download(tickers='QQQ', start=start, end=end)
 
 data_spy['DailyReturn'] = data_spy['Adj Close'].pct_change().dropna()
 data_qqq['DailyReturn'] = data_qqq['Adj Close'].pct_change().dropna()
-data2['DailyReturn'] = data2['Adj Close'].pct_change().dropna()
+data['DailyReturn'] = data['Adj Close'].pct_change().dropna()
 
 # Calculate the correlation with SPY and QQQ
-correlation_spy = data2['DailyReturn'].corr(data_spy['DailyReturn'])
-correlation_qqq = data2['DailyReturn'].corr(data_qqq['DailyReturn'])
+correlation_spy = data['DailyReturn'].corr(data_spy['DailyReturn'])
+correlation_qqq = data['DailyReturn'].corr(data_qqq['DailyReturn'])
 
 # Display the correlation with SPY and QQQ
 st.markdown("### Correlation with Market Indices")
