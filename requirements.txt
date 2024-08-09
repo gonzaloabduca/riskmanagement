@@ -2,4 +2,6 @@ streamlit
 yfinance
 plotly
 numpy
+pandas_datareader
+pandas
 scipy
